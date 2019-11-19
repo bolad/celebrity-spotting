@@ -5,7 +5,7 @@ class CelebritySpotting < Sinatra::Base
     # We're going to be returning TwiML, so we'll create a new
     # Twilio::TwiML::MessagingResponse and set the content type header to
     # text/xml
-    content_type "text/xml"
+    content_type = "text/xml"
     twiml = Twilio::TwiML::MessagingResponse.new
 
     # Look for the NumMedia parameter sent by Twilio to tell whether there is
@@ -15,7 +15,28 @@ class CelebritySpotting < Sinatra::Base
     if params["NumMedia"].to_i > 0
       tempfile = Down.download(params["MediaUrl0"])
       begin
-        twiml.message body: "Thanks for the image! It's #{tempfile.size} bytes large."
+        # To spot celebrities in our pictures we need to create a client to use
+        # the AWS API and send the image to the recognizing celebrities endpoint.
+        client = Aws::Rekognition::Client.new
+        response = client.recognize_celebrities image: { bytes: tempfile.read }
+        if response.celebrity_faces.any?
+          if response.celebrity_faces.count == 1
+            celebrity = response.celebrity_faces.first
+            twiml.message body: "Ooh, I am #{celebrity.match_confidence}% confident this looks like #{celebrity.name}."
+          else
+            twiml.message body: "I found #{response.celebrity_faces.count} celebrities in this picture. Looks like #{to_sentence(response.celebrity_faces.map { |face| face.name }) } are in the picture."
+          end
+        else
+          case response.unrecognized_faces.count
+          when 0
+            twiml.message body: "I couldn't find any faces in that picture. Maybe try another pic?"
+          when 1
+            twiml.message body: "I found 1 face in that picture, but it didn't look like any celebrity I'm afraid."
+          else
+            twiml.message body: "I found #{response.unrecognized_faces.count} faces in that picture, but none of them look like celebrities."
+          end
+        end
+        # twiml.message body: "Thanks for the image! It's #{tempfile.size} bytes large."
       ensure
         # Once we are done with the tempfile we should close and unlink it
         tempfile.close!
@@ -26,4 +47,11 @@ class CelebritySpotting < Sinatra::Base
     end
     twiml.to_xml
   end
+
+  # helper function to turn a list of names into a readable sentence
+  def to_sentence(array)
+    return array.to_s if array.length <= 1
+    "#{array[0..-2].join(", ")} and #{array[-1]}"
+  end
+
 end
