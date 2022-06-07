@@ -819,7 +819,7 @@ GEM
       thor (>= 0.18.1, < 2.0)
     faraday (0.17.0)
       multipart-post (>= 1.2, < 3)
-    jmespath (1.4.0)
+    jmespath (1.6.1)
     jwt (2.2.1)
     mini_portile2 (2.4.0)
     multipart-post (2.1.1)
